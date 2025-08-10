@@ -111,20 +111,19 @@ class _InsertPageState extends State<InsertPage> {
 
         if (frenchWord.isEmpty || englishWord.isEmpty) continue;
 
-        CategoryProvider categoryProvider = Provider.of<CategoryProvider>(
-          context,
-          listen: false,
-        );
-
+        List<Category> categories = await db.getAllCategories();
         int categoryId = -1;
-        print('$frenchWord - $englishWord - $categoryName');
-        for (Category category in categoryProvider.categories) {
-          if (category.name.toLowerCase() == categoryName.toLowerCase()) {
+
+        for (Category category in categories) {
+          if (category.name.trim().toLowerCase() ==
+              categoryName.toString().trim().toLowerCase()) {
             categoryId = category.id!;
           }
         }
         if (categoryId == -1) {
-          categoryId = await db.insertCategory(Category(name: categoryName));
+          categoryId = await db.insertCategory(
+            Category(name: categoryName.toString().trim().toLowerCase()),
+          );
         }
 
         await db.insertWord(
