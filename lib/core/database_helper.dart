@@ -51,6 +51,26 @@ class DatabaseHelper {
     );
   }
 
+  Future<void> updateWordState(int id, String state) async {
+    final db = await database;
+    await db.update(
+      'words',
+      {'learned': state},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> updateStar(int id, bool isStarred) async {
+    final db = await database;
+    await db.update(
+      'words',
+      {'starred': isStarred ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   Future<int> deleteWord(int id) async {
     final db = await database;
     return await db.delete('words', where: 'id = ?', whereArgs: [id]);

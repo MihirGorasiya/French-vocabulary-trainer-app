@@ -1,36 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:french_vocabulary_trainer_app/core/database_helper.dart';
 import 'package:french_vocabulary_trainer_app/models/model_vocab_word.dart';
 import 'package:french_vocabulary_trainer_app/pages/insert_page.dart';
 import 'package:french_vocabulary_trainer_app/pages/word_form_page.dart';
+import 'package:provider/provider.dart';
 
-class HomePage extends StatefulWidget {
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
+import '../provider/word_provider.dart';
 
-class _HomePageState extends State<HomePage> {
-  final db = DatabaseHelper.instance;
-  List<VocabWord> _words = [];
-  bool _loading = true;
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
 
-  @override
-  void initState() {
-    super.initState();
-    _loadWords();
-  }
-
-  Future<void> _loadWords() async {
-    setState(() => _loading = true);
-    final words = await db.getAllWords();
-    setState(() {
-      _words = words;
-      _loading = false;
-    });
-  }
-
-  Future<void> _addOrEditWord({VocabWord? existing}) async {
-    // show modal bottom sheet with form
+  Future<void> _addOrEditWord(
+    BuildContext context, {
+    VocabWord? existing,
+  }) async {
     final result = await showModalBottomSheet<VocabWord>(
       context: context,
       isScrollControlled: true,
@@ -45,36 +27,31 @@ class _HomePageState extends State<HomePage> {
     );
 
     if (result != null) {
+      final provider = Provider.of<WordProvider>(context, listen: false);
       if (existing == null) {
-        await db.insertWord(result);
+        await provider.addWord(result);
       } else {
-        await db.updateWord(result.copyWith(id: existing.id));
+        await provider.updateWord(result.copyWith(id: existing.id));
       }
-      await _loadWords();
     }
   }
 
-  void _toggleStar(VocabWord w) async {
-    final toggled = w.copyWith(starred: w.starred == 1 ? 0 : 1);
-    await db.updateWord(toggled);
-    final idx = _words.indexWhere((e) => e.id == w.id);
-    if (idx >= 0) {
-      setState(() => _words[idx] = toggled);
-    } else {
-      _loadWords();
-    }
+  void _toggleStar(BuildContext context, VocabWord w) {
+    Provider.of<WordProvider>(
+      context,
+      listen: false,
+    ).toggleStar(w.id!, w.starred == 0);
   }
 
-  void _deleteWord(VocabWord w) async {
-    await db.deleteWord(w.id!);
-    setState(() => _words.removeWhere((e) => e.id == w.id));
+  void _deleteWord(BuildContext context, VocabWord w) async {
+    final provider = Provider.of<WordProvider>(context, listen: false);
+    await provider.deleteWord(w.id!);
     final snack = SnackBar(
       content: Text('Deleted "${w.word}"'),
       action: SnackBarAction(
         label: 'UNDO',
         onPressed: () async {
-          await db.insertWord(w.copyWith(id: null)); // reinsert (new id)
-          _loadWords();
+          await provider.addWord(w.copyWith(id: null));
         },
       ),
     );
@@ -83,28 +60,31 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final wordProvider = Provider.of<WordProvider>(context);
+    final words = wordProvider.words;
+    final loading = wordProvider.loading;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('French Vocab'),
+        title: const Text('French Vocab'),
         actions: [
           IconButton(
             tooltip: 'Refresh',
-            icon: Icon(Icons.refresh),
-            onPressed: _loadWords,
+            icon: const Icon(Icons.refresh),
+            onPressed: () => wordProvider.loadWords(),
           ),
-          // future: add search / category icons here
         ],
       ),
       body:
-          _loading
-              ? Center(child: CircularProgressIndicator())
+          loading
+              ? const Center(child: CircularProgressIndicator())
               : RefreshIndicator(
-                onRefresh: _loadWords,
+                onRefresh: () => wordProvider.loadWords(),
                 child:
-                    _words.isEmpty
+                    words.isEmpty
                         ? ListView(
-                          physics: AlwaysScrollableScrollPhysics(),
-                          children: [
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: const [
                             SizedBox(height: 120),
                             Icon(
                               Icons.menu_book_outlined,
@@ -120,32 +100,34 @@ class _HomePageState extends State<HomePage> {
                           ],
                         )
                         : ListView.separated(
-                          physics: AlwaysScrollableScrollPhysics(),
-                          itemCount: _words.length,
-                          separatorBuilder: (_, __) => Divider(height: 1),
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          itemCount: words.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
                           itemBuilder: (context, index) {
-                            final w = _words[index];
+                            final w = words[index];
                             return Dismissible(
                               key: ValueKey(w.id),
                               direction: DismissDirection.endToStart,
                               background: Container(
                                 color: Colors.red,
                                 alignment: Alignment.centerRight,
-                                padding: EdgeInsets.symmetric(horizontal: 20),
-                                child: Icon(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                ),
+                                child: const Icon(
                                   Icons.delete_forever,
                                   color: Colors.white,
                                 ),
                               ),
-                              onDismissed: (_) => _deleteWord(w),
+                              onDismissed: (_) => _deleteWord(context, w),
                               child: ListTile(
-                                contentPadding: EdgeInsets.symmetric(
+                                contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 16,
                                   vertical: 8,
                                 ),
                                 title: Text(
                                   w.word,
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -153,10 +135,10 @@ class _HomePageState extends State<HomePage> {
                                 subtitle: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    SizedBox(height: 4),
+                                    const SizedBox(height: 4),
                                     Text(
                                       w.meaning,
-                                      style: TextStyle(fontSize: 15),
+                                      style: const TextStyle(fontSize: 15),
                                     ),
                                     if (w.category != null &&
                                         (w.category?.isNotEmpty ?? false))
@@ -171,9 +153,8 @@ class _HomePageState extends State<HomePage> {
                                             Chip(label: Text(w.learned)),
                                           ],
                                         ),
-                                      ),
-                                    if (w.category == null ||
-                                        w.category!.isEmpty)
+                                      )
+                                    else
                                       Padding(
                                         padding: const EdgeInsets.only(
                                           top: 6.0,
@@ -197,12 +178,13 @@ class _HomePageState extends State<HomePage> {
                                                 ? Colors.amber
                                                 : null,
                                       ),
-                                      onPressed: () => _toggleStar(w),
+                                      onPressed: () => _toggleStar(context, w),
                                     ),
-                                    Icon(Icons.chevron_right),
+                                    const Icon(Icons.chevron_right),
                                   ],
                                 ),
-                                onTap: () => _addOrEditWord(existing: w),
+                                onTap:
+                                    () => _addOrEditWord(context, existing: w),
                               ),
                             );
                           },
@@ -212,13 +194,13 @@ class _HomePageState extends State<HomePage> {
         onPressed: () async {
           final added = await Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => InsertPage()),
+            MaterialPageRoute(builder: (_) => const InsertPage()),
           );
           if (added == true) {
-            _loadWords();
+            wordProvider.loadWords();
           }
         },
-        child: Icon(Icons.add),
+        child: const Icon(Icons.add),
         tooltip: 'Add new word',
       ),
     );
