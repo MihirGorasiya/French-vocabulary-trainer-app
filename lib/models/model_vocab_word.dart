@@ -2,7 +2,8 @@ class VocabWord {
   final int? id;
   final String word;
   final String meaning;
-  final String? category;
+  final int categoryId;
+  final String? categoryName;
   final int starred; // 0 or 1
   final String learned; // 'new', 'learning', 'learned'
 
@@ -10,27 +11,30 @@ class VocabWord {
     this.id,
     required this.word,
     required this.meaning,
-    this.category,
+    required this.categoryId,
+    this.categoryName,
     this.starred = 0,
     this.learned = 'new',
   });
 
   factory VocabWord.fromMap(Map<String, dynamic> m) => VocabWord(
-        id: m['id'] as int?,
-        word: m['word'] as String,
-        meaning: m['meaning'] as String,
-        category: m['category'] as String?,
-        starred: m['starred'] as int? ?? 0,
-        learned: m['learned'] as String? ?? 'new',
-      );
+    id: m['id'] as int?,
+    word: m['word'] as String,
+    meaning: m['meaning'] as String,
+    categoryId: m['category_id'] as int,
+    categoryName: m['category_name'],
+    starred: m['starred'] as int? ?? 0,
+    learned: m['state'] as String? ?? 'new',
+  );
 
   Map<String, dynamic> toMap() {
     return {
       'word': word,
       'meaning': meaning,
-      'category': category,
+      'category_id': categoryId,
+      'category_name': categoryName,
       'starred': starred,
-      'learned': learned,
+      'state': learned,
       if (id != null) 'id': id,
     };
   }
@@ -39,7 +43,8 @@ class VocabWord {
     int? id,
     String? word,
     String? meaning,
-    String? category,
+    int? categoryId,
+    String? categoryName,
     int? starred,
     String? learned,
   }) {
@@ -47,7 +52,8 @@ class VocabWord {
       id: id ?? this.id,
       word: word ?? this.word,
       meaning: meaning ?? this.meaning,
-      category: category ?? this.category,
+      categoryId: categoryId ?? this.categoryId,
+      categoryName: categoryName ?? this.categoryName,
       starred: starred ?? this.starred,
       learned: learned ?? this.learned,
     );

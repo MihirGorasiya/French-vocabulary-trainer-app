@@ -1,6 +1,14 @@
+import 'dart:io';
+
+import 'package:excel/excel.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:french_vocabulary_trainer_app/core/database_helper.dart';
+import 'package:french_vocabulary_trainer_app/models/model_category.dart';
 import 'package:french_vocabulary_trainer_app/models/model_vocab_word.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/provider_category.dart';
 
 class InsertPage extends StatefulWidget {
   const InsertPage({super.key});
@@ -12,6 +20,15 @@ class InsertPage extends StatefulWidget {
 class _InsertPageState extends State<InsertPage> {
   final db = DatabaseHelper.instance;
   List<_WordEntry> entries = [_WordEntry()]; // start with one row
+
+  @override
+  void initState() {
+    super.initState();
+    // Load categories when page opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<CategoryProvider>(context, listen: false).loadCategories();
+    });
+  }
 
   void _addRow() {
     setState(() {
@@ -26,7 +43,6 @@ class _InsertPageState extends State<InsertPage> {
   }
 
   Future<void> _saveAll() async {
-    // Validate: remove empty rows
     final toSave =
         entries
             .where(
@@ -48,8 +64,7 @@ class _InsertPageState extends State<InsertPage> {
         VocabWord(
           word: e.word.text.trim(),
           meaning: e.meaning.text.trim(),
-          category:
-              e.category.text.trim().isEmpty ? null : e.category.text.trim(),
+          categoryId: e.selectedCategoryId ?? 0,
           starred: 0,
           learned: 'new',
         ),
@@ -59,12 +74,71 @@ class _InsertPageState extends State<InsertPage> {
     Navigator.pop(context, true); // true means data was added
   }
 
+  Future<void> importWordsFromExcel(DatabaseHelper db) async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['xlsx'],
+    );
+
+    if (result == null) return; // User canceled
+
+    File file = File(result.files.single.path!);
+    var bytes = await file.readAsBytes();
+    var excel = Excel.decodeBytes(bytes);
+
+    for (var sheetName in excel.tables.keys) {
+      var sheet = excel.tables[sheetName];
+      if (sheet == null) continue;
+
+      bool firstRow = true; // If you want to skip headers
+      for (var row in sheet.rows) {
+        if (firstRow) {
+          firstRow = false;
+          continue; // skip header row
+        }
+
+        final frenchWord = row[0]?.value?.toString().trim() ?? '';
+        final englishWord = row[1]?.value?.toString().trim() ?? '';
+        final categoryName = row[2]?.value?.toString().trim() ?? '';
+
+        if (frenchWord.isEmpty || englishWord.isEmpty) continue;
+
+        CategoryProvider categoryProvider = Provider.of<CategoryProvider>(
+          context,
+          listen: false,
+        );
+
+        int categoryId = 0;
+        print('$frenchWord - $englishWord - $categoryName');
+        for (Category category in categoryProvider.categories) {
+          if (category.name.toLowerCase() == categoryName.toLowerCase()) {
+            categoryId = category.id!;
+          }
+        }
+
+        await db.insertWord(
+          VocabWord(
+            word: frenchWord,
+            meaning: englishWord,
+            categoryId: categoryId,
+          ),
+        );
+      }
+    }
+    Navigator.pop(context, true); // true means data was added
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Insert Words'),
         actions: [
+          IconButton(
+            icon: Icon(Icons.import_export),
+            tooltip: 'Import',
+            onPressed: () async => await importWordsFromExcel(db),
+          ),
           IconButton(
             icon: Icon(Icons.save),
             tooltip: 'Save all',
@@ -98,12 +172,29 @@ class _InsertPageState extends State<InsertPage> {
                     ),
                   ),
                   SizedBox(height: 8),
-                  TextFormField(
-                    controller: entries[index].category,
-                    decoration: InputDecoration(
-                      labelText: 'Category (optional)',
-                      border: OutlineInputBorder(),
-                    ),
+                  Consumer<CategoryProvider>(
+                    builder: (context, categoryProvider, child) {
+                      final categories = categoryProvider.categories;
+                      return DropdownButtonFormField<int>(
+                        decoration: InputDecoration(
+                          labelText: 'Category',
+                          border: OutlineInputBorder(),
+                        ),
+                        value: entries[index].selectedCategoryId,
+                        items:
+                            categories.map((Category category) {
+                              return DropdownMenuItem<int>(
+                                value: category.id,
+                                child: Text(category.name),
+                              );
+                            }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            entries[index].selectedCategoryId = value;
+                          });
+                        },
+                      );
+                    },
                   ),
                   if (entries.length > 1)
                     Align(
@@ -131,5 +222,5 @@ class _InsertPageState extends State<InsertPage> {
 class _WordEntry {
   final word = TextEditingController();
   final meaning = TextEditingController();
-  final category = TextEditingController();
+  int? selectedCategoryId; // NEW — dropdown selected value
 }

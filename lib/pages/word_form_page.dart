@@ -1,145 +1,111 @@
 import 'package:flutter/material.dart';
-import 'package:french_vocabulary_trainer_app/models/model_vocab_word.dart';
+
+import '../core/database_helper.dart';
+import '../models/model_category.dart';
+import '../models/model_vocab_word.dart';
 
 class WordForm extends StatefulWidget {
   final VocabWord? initial;
-  WordForm({this.initial});
+
+  const WordForm({super.key, this.initial});
 
   @override
-  _WordFormState createState() => _WordFormState();
+  State<WordForm> createState() => _WordFormState();
 }
 
 class _WordFormState extends State<WordForm> {
-  final _formKey = GlobalKey<FormState>();
-  late TextEditingController _wordCtrl;
-  late TextEditingController _meaningCtrl;
-  late TextEditingController _categoryCtrl;
-  bool _starred = false;
-  String _learned = 'new';
+  final _wordCtrl = TextEditingController();
+  final _meaningCtrl = TextEditingController();
+  int? _selectedCategoryId; // store selected category ID
+
+  List<Category> _categories = []; // from DB
 
   @override
   void initState() {
     super.initState();
-    _wordCtrl = TextEditingController(text: widget.initial?.word ?? '');
-    _meaningCtrl = TextEditingController(text: widget.initial?.meaning ?? '');
-    _categoryCtrl = TextEditingController(text: widget.initial?.category ?? '');
-    _starred = (widget.initial?.starred ?? 0) == 1;
-    _learned = widget.initial?.learned ?? 'new';
+    _loadCategories();
+
+    if (widget.initial != null) {
+      _wordCtrl.text = widget.initial!.word;
+      _meaningCtrl.text = widget.initial!.meaning;
+      _selectedCategoryId = widget.initial!.categoryId;
+    }
   }
 
-  @override
-  void dispose() {
-    _wordCtrl.dispose();
-    _meaningCtrl.dispose();
-    _categoryCtrl.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-
-    final newWord = VocabWord(
-      id: widget.initial?.id,
-      word: _wordCtrl.text.trim(),
-      meaning: _meaningCtrl.text.trim(),
-      category:
-          _categoryCtrl.text.trim().isEmpty ? null : _categoryCtrl.text.trim(),
-      starred: _starred ? 1 : 0,
-      learned: _learned,
-    );
-
-    Navigator.of(context).pop(newWord);
+  Future<void> _loadCategories() async {
+    final db = DatabaseHelper.instance;
+    final categories =
+        await db.getAllCategories(); // implement this in DB helper
+    setState(() {
+      _categories = categories;
+      if (_selectedCategoryId == null && categories.isNotEmpty) {
+        _selectedCategoryId = categories.first.id;
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final isEditing = widget.initial != null;
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 24),
+      padding: const EdgeInsets.all(16.0),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              isEditing ? 'Edit word' : 'Add new word',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            TextField(
+              controller: _wordCtrl,
+              decoration: const InputDecoration(labelText: 'Word'),
             ),
-            SizedBox(height: 12),
-            Form(
-              key: _formKey,
-              child: Column(
-                children: [
-                  TextFormField(
-                    controller: _wordCtrl,
-                    textCapitalization: TextCapitalization.none,
-                    decoration: InputDecoration(
-                      labelText: 'French word',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator:
-                        (v) =>
-                            (v == null || v.trim().isEmpty)
-                                ? 'Enter the French word'
-                                : null,
+            const SizedBox(height: 12),
+            TextField(
+              controller: _meaningCtrl,
+              decoration: const InputDecoration(labelText: 'Meaning'),
+            ),
+            const SizedBox(height: 12),
+
+            // Category dropdown
+            DropdownButtonFormField<int>(
+              value: _selectedCategoryId,
+              decoration: const InputDecoration(labelText: 'Category'),
+              items:
+                  _categories.map((cat) {
+                    return DropdownMenuItem<int>(
+                      value: cat.id,
+                      child: Text(cat.name),
+                    );
+                  }).toList(),
+              onChanged: (val) {
+                setState(() {
+                  _selectedCategoryId = val;
+                });
+              },
+            ),
+
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                if (_wordCtrl.text.trim().isEmpty ||
+                    _meaningCtrl.text.trim().isEmpty ||
+                    _selectedCategoryId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please fill all fields')),
+                  );
+                  return;
+                }
+
+                Navigator.pop(
+                  context,
+                  VocabWord(
+                    id: widget.initial?.id,
+                    word: _wordCtrl.text.trim(),
+                    meaning: _meaningCtrl.text.trim(),
+                    categoryId: _selectedCategoryId!,
+                    starred: widget.initial?.starred ?? 0,
+                    learned: widget.initial?.learned ?? 'new',
                   ),
-                  SizedBox(height: 12),
-                  TextFormField(
-                    controller: _meaningCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'English meaning',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator:
-                        (v) =>
-                            (v == null || v.trim().isEmpty)
-                                ? 'Enter the meaning'
-                                : null,
-                  ),
-                  SizedBox(height: 12),
-                  TextFormField(
-                    controller: _categoryCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'Category (optional)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Checkbox(
-                        value: _starred,
-                        onChanged: (v) => setState(() => _starred = v ?? false),
-                      ),
-                      Text('Star this word'),
-                      Spacer(),
-                      DropdownButton<String>(
-                        value: _learned,
-                        items:
-                            ['new', 'learning', 'learned']
-                                .map(
-                                  (s) => DropdownMenuItem(
-                                    value: s,
-                                    child: Text(s),
-                                  ),
-                                )
-                                .toList(),
-                        onChanged: (v) => setState(() => _learned = v ?? 'new'),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: _submit,
-                          child: Text(isEditing ? 'Save changes' : 'Add word'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                );
+              },
+              child: Text(widget.initial == null ? 'Add Word' : 'Update Word'),
             ),
           ],
         ),

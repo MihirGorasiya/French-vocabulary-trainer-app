@@ -49,4 +49,10 @@ class WordProvider with ChangeNotifier {
     await DatabaseHelper.instance.updateStar(id, isStarred);
     await loadWords();
   }
+
+  Future<void> loadWordsByCategory(int categoryId) async {
+    final data = await DatabaseHelper.instance.getWordsByCategory(categoryId);
+    _words = data;
+    notifyListeners();
+  }
 }

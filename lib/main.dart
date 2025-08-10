@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:french_vocabulary_trainer_app/pages/home_page.dart';
-import 'package:french_vocabulary_trainer_app/provider/word_provider.dart';
+import 'package:french_vocabulary_trainer_app/providers/provider_category.dart';
+import 'package:french_vocabulary_trainer_app/providers/word_provider.dart';
 import 'package:provider/provider.dart';
 
 void main() {
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => WordProvider()..loadWords(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => WordProvider()..loadWords()),
+        ChangeNotifierProvider(
+          create: (_) => CategoryProvider()..loadCategories(),
+        ),
+      ],
       child: const MyApp(),
     ),
   );
