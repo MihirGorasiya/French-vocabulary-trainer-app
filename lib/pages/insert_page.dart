@@ -82,6 +82,14 @@ class _InsertPageState extends State<InsertPage> {
 
     if (result == null) return; // User canceled
 
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Importing words from Excel...\nWait for a moment, you will be redirected automatically.',
+        ),
+      ),
+    );
+
     File file = File(result.files.single.path!);
     var bytes = await file.readAsBytes();
     var excel = Excel.decodeBytes(bytes);
@@ -108,12 +116,15 @@ class _InsertPageState extends State<InsertPage> {
           listen: false,
         );
 
-        int categoryId = 0;
+        int categoryId = -1;
         print('$frenchWord - $englishWord - $categoryName');
         for (Category category in categoryProvider.categories) {
           if (category.name.toLowerCase() == categoryName.toLowerCase()) {
             categoryId = category.id!;
           }
+        }
+        if (categoryId == -1) {
+          categoryId = await db.insertCategory(Category(name: categoryName));
         }
 
         await db.insertWord(
