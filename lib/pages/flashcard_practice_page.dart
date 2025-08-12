@@ -51,19 +51,15 @@ class _FlashcardPracticePageState extends State<FlashcardPracticePage>
 
   Future<void> _loadWords() async {
     List<VocabWord> allWords;
+
     if (_selectedCategoryId == -2) {
       allWords = await db.getWordsByCategoryAndLearned();
-    }
-    if (_selectedCategoryId == -1) {
+    } else if (_selectedCategoryId == -1) {
       allWords = await db.getAllWords();
     } else {
       allWords = await db.getWordsByCategoryAndLearning(_selectedCategoryId);
     }
-    // print('------------------------');
-    // for (var word in allWords) {
-    //   print('${word.word} - ${word.meaning} - ${word.learned}');
-    // }
-    // print('------------------------');
+
     setState(() {
       _words = allWords;
       _currentIndex = 0;
